@@ -26,6 +26,9 @@ class Pos():
     def __sub__(self, other: Pos) -> Pos:
         return Pos(x=self.x-other.x, y=self.y-other.y)
     
+    def is_integer(self) -> bool:
+        return self.x.is_integer() and self.y.is_integer()
+    
     def rotate(self, clockwise:bool = True, set:bool = True) -> Pos:
         if clockwise:
             x = self.y
@@ -78,15 +81,17 @@ class Block():
         else:
             return Block(pos=pivot+relPos, relPos=Pos(relPos.x,relPos.y), colour=self.colour)
         
-    def drop(self, set:bool = True) -> bool:
-        if self.pos.x > 0 and self.pos.y > 0 and self.pos.x < WIDTH and self.pos.y < HEIGHT:
-            checkIndex = (self.pos-Pos(0,1)).index()
-            if grid[checkIndex].colour == 0:
-                if set:
-                    self.pos = self.pos-Pos(0,1)
-                return True
-            
-        return False
+    def move(self, vector:Pos = Pos(0,-1), set:bool = True) -> bool:
+        if vector.is_integer():
+            if self.pos.x+vector.x >= 0 and self.pos.y+vector.y >= 0 and self.pos.x+vector.x < WIDTH and self.pos.y+vector.y < HEIGHT:
+                checkIndex = (self.pos+vector).index()
+                if grid[checkIndex].colour == 0:
+                    if set:
+                        self.pos = self.pos+vector
+                    return True
+            return False
+        else:
+            raise ValueError("Vector is not an integer Pos")
 
 
 class Shape():
@@ -134,18 +139,22 @@ class Shape():
         else:
             raise TypeError("Shape uninstantiated")
         
-    def drop(self) -> bool:
+    def move(self, vector:Pos = Pos(0,-1), set:bool = True) -> bool:
+        if not vector.is_integer():
+            raise ValueError("Vector is not an integer Pos")
         if self.is_instantiated():
             assert self.blocks is not None
-            for block in self.blocks:
-                block.clear()
+            if set:
+                for block in self.blocks:
+                    block.clear()
 
-            if all(block.drop(set=False) for block in self.blocks):
-                for block in self.blocks:
-                    block.drop()
-                for block in self.blocks:
-                    block.set()
-                self.pos = self.pos-Pos(0,1)
+            if all(block.move(vector=vector, set=False) for block in self.blocks):
+                if set:
+                    for block in self.blocks:
+                        block.move(vector=vector)
+                    for block in self.blocks:
+                        block.set()
+                self.pos = self.pos+vector
                 return True
                     
             for block in self.blocks:
@@ -190,6 +199,11 @@ class Tile():
         pygame.draw.rect(screen, self.COLOURS[self.colour], pygame.Rect(self.pos.x*(size+gap)+offset[0], ((HEIGHT-1)-self.pos.y)*(size+gap)+offset[1], size, size))
 
 
+def get_shuffled(list: list) -> list:
+    shuffled = [item for item in list]
+    random.shuffle(shuffled)
+    return shuffled
+
 WIDTH = 10
 HEIGHT = 20
 BLOCKSIZE = 32
@@ -210,7 +224,8 @@ SHAPES = [
 
 grid: list[Tile] = [Tile(pos=Pos(x,y), colour=0) for y in range(HEIGHT) for x in range(WIDTH)]
 
-shape: Shape = random.choice(SHAPES).instantiate()
+bag: list[Shape] = get_shuffled(SHAPES)
+shape: Shape = bag.pop(0).instantiate()
 assert shape.blocks is not None
 for block in shape.blocks: block.set()
 
@@ -230,16 +245,24 @@ while running:
         if event.type == pygame.KEYDOWN:
             if event.key in (pygame.K_w,pygame.K_UP):
                 shape.rotate()
-            elif event.key in (pygame.K_s,pygame.K_DOWN) and not dropped:
-                if shape.drop():
-                    dropped = True
 
-    screen.fill("purple")
+    keys = pygame.key.get_pressed()
+    if any(keys[key] for key in (pygame.K_s,pygame.K_DOWN)) and not dropped:
+        if shape.move():
+            dropped = True
+    if any(keys[key] for key in (pygame.K_a,pygame.K_LEFT)):
+        shape.move(Pos(-1,0))
+    if any(keys[key] for key in (pygame.K_d,pygame.K_RIGHT)):
+        shape.move(Pos(1,0))
+
+    screen.fill("grey")
 
     if pygame.time.get_ticks() >= DROPTIME*ticks:
         if not dropped:
-            if not shape.drop():
-                shape = random.choice(SHAPES).instantiate()
+            if not shape.move():
+                if len(bag) == 0:
+                    bag = get_shuffled(SHAPES)
+                shape = bag.pop(0).instantiate()
         ticks += 1
 
     for tile in grid:
@@ -247,11 +270,11 @@ while running:
 
     pygame.display.flip()
 
-    clock.tick(10)
+    clock.tick(20)
 
 pygame.quit()
 
-# TODO: left and right
+# TODO: wall kicks
 # TODO: row clear
 # TODO: next block
 # TODO: points?
