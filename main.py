@@ -72,14 +72,16 @@ class Block():
         tile.colour = self.colour
         return self
 
-    def rotate(self, clockwise:bool = True, set:bool = True) -> Block:
+    def rotate(self, clockwise:bool = True, set:bool = True, offset: Pos = Pos(0,0)) -> bool:
         pivot = self.pos-self.relPos
         relPos = self.relPos.rotate(clockwise=clockwise,set=set)
-        if set:
-            self.pos = pivot+relPos
-            return self
+        pos = pivot+relPos+offset
+        if pos.x < 0 or pos.y < 0 or pos.x >= WIDTH or pos.y >= HEIGHT or grid[pos.index()].colour != 0:
+            return False
         else:
-            return Block(pos=pivot+relPos, relPos=Pos(relPos.x,relPos.y), colour=self.colour)
+            if set:
+                self.pos = pos
+            return True
         
     def move(self, vector:Pos = Pos(0,-1), set:bool = True) -> bool:
         if vector.is_integer():
@@ -98,12 +100,37 @@ class Shape():
     pos: Pos
     relPositions: list[Pos]
     colour: int
+    name: str
+    rotation: int
     blocks: list[Block]|None
 
-    def __init__(self, pos: Pos, relPositions: list[Pos], colour: int, blocks:list[Block]|None = None):
+    NORMALWALLKICKTESTS = {
+        "0cw":  [Pos(0,0),Pos(-1,0),Pos(-1,-1),Pos(0,+2),Pos(-1,+2)],
+        "1ccw": [Pos(0,0),Pos(+1,0),Pos(+1,+1),Pos(0,-2),Pos(+1,-2)],
+        "1cw": [Pos(0,0),Pos(+1,0),Pos(+1,+1),Pos(0,-2),Pos(+1,-2)],
+        "2ccw": [Pos(0,0),Pos(-1,0),Pos(-1,-1),Pos(0,+2),Pos(-1,+2)],
+        "2cw": [Pos(0,0),Pos(+1,0),Pos(+1,-1),Pos(0,+2),Pos(+1,+2)],
+        "3ccw": [Pos(0,0),Pos(-1,0),Pos(-1,+1),Pos(0,-2),Pos(-1,-2)],
+        "3cw": [Pos(0,0),Pos(-1,0),Pos(-1,-1),Pos(0,-2),Pos(-1,-2)],
+        "0ccw": [Pos(0,0),Pos(+1,0),Pos(+1,-1),Pos(0,+2),Pos(+1,+2)]
+    }
+    IWALLKICKTESTS = {
+        "0cw":  [Pos(0,0),Pos(-2,0),Pos(+1,0),Pos(-2,+1),Pos(+1,-2)],
+        "1ccw": [Pos(0,0),Pos(+2,0),Pos(-1,0),Pos(+2,-1),Pos(-1,+2)],
+        "1cw": [Pos(0,0),Pos(-1,0),Pos(+2,0),Pos(-1,-2),Pos(+2,+1)],
+        "2ccw": [Pos(0,0),Pos(+1,0),Pos(-2,0),Pos(+1,+2),Pos(-2,-1)],
+        "2cw": [Pos(0,0),Pos(+2,0),Pos(-1,0),Pos(+2,-1),Pos(-1,+2)],
+        "3ccw": [Pos(0,0),Pos(-2,0),Pos(+1,0),Pos(-2,+1),Pos(+1,-2)],
+        "3cw": [Pos(0,0),Pos(+1,0),Pos(-2,0),Pos(+1,+2),Pos(-2,-1)],
+        "0ccw": [Pos(0,0),Pos(-1,0),Pos(+2,0),Pos(-1,-2),Pos(+2,+1)]
+    }
+
+    def __init__(self, pos: Pos, relPositions: list[Pos], colour: int, name: str, rotation:int = 0, blocks:list[Block]|None = None):
         self.pos = pos
         self.relPositions = relPositions
         self.colour = colour
+        self.name = name
+        self.rotation = rotation
         self.blocks = blocks
 
     def __repr__(self):
@@ -111,7 +138,7 @@ class Shape():
 
     def instantiate(self, pos:Pos|None = None) -> Shape:
         pos = self.pos if pos is None else pos
-        shape = Shape(pos=Pos(pos.x, pos.y), relPositions=[Pos(relPos.x, relPos.y) for relPos in self.relPositions], colour=self.colour, blocks=[Block(pos=pos+relPos, relPos=Pos(relPos.x,relPos.y), colour=self.colour) for relPos in self.relPositions])
+        shape = Shape(pos=Pos(pos.x, pos.y), relPositions=[Pos(relPos.x, relPos.y) for relPos in self.relPositions], colour=self.colour, name=self.name, rotation=self.rotation, blocks=[Block(pos=pos+relPos, relPos=Pos(relPos.x,relPos.y), colour=self.colour) for relPos in self.relPositions])
         assert shape.blocks is not None
         for block in shape.blocks:
             block.set()
@@ -119,22 +146,35 @@ class Shape():
     
     def is_instantiated(self) -> bool:
         return isinstance(self.blocks, list) and len(self.blocks) > 0 and all(isinstance(block, Block) for block in self.blocks)
-
+    
+    def test_rotation(self, clockwise: bool, offset:Pos) -> bool:
+        assert self.blocks is not None
+        return all(block.rotate(clockwise=clockwise, set=False, offset=offset) for block in self.blocks)
+        
     def rotate(self, clockwise: bool = True) -> bool:
         if self.is_instantiated():
             assert self.blocks is not None
             for block in self.blocks:
                 block.clear()
+            if self.name == "I":
+                wall_kick_dict: dict[str, list[Pos]] = self.IWALLKICKTESTS
+            else:
+                wall_kick_dict: dict[str, list[Pos]] = self.NORMALWALLKICKTESTS
+            wall_kick_tests: list[Pos] = wall_kick_dict[f"{self.rotation}{"c" if not clockwise else ""}cw"]
+            offset = None
+            for test in wall_kick_tests:
+                if self.test_rotation(clockwise=clockwise,offset=test):
+                    offset = test
+                    break
+            if offset is None:
+                for block in self.blocks:
+                    block.set()
+                return False
             for block in self.blocks:
-                pos = block.rotate(clockwise=clockwise, set=False).pos
-                if pos.x < 0 or pos.y < 0 or pos.x >= WIDTH or pos.y >= HEIGHT or grid[pos.index()].colour != 0:
-                    for block in self.blocks:
-                        block.set()
-                    return False
-            for block in self.blocks:
-                block.rotate(clockwise=clockwise)
+                block.rotate(clockwise=clockwise, offset=offset)
             for block in self.blocks:
                 block.set()
+            self.rotation = (self.rotation+(1 if clockwise else -1))%4
             return True
         else:
             raise TypeError("Shape uninstantiated")
@@ -196,7 +236,7 @@ class Tile():
         return f"Tile(pos={self.pos},colour={self.colour})"
 
     def draw(self, screen: pygame.Surface, size: int, offset: tuple[int, int] = (0, 0), gap: int = 0):
-        pygame.draw.rect(screen, self.COLOURS[self.colour], pygame.Rect(self.pos.x*(size+gap)+offset[0], ((HEIGHT-1)-self.pos.y)*(size+gap)+offset[1], size, size))
+        pygame.draw.rect(screen, self.COLOURS[self.colour], pygame.Rect(self.pos.x*(size+gap)+offset[0], ((HEIGHT-1)-self.pos.y-(HEIGHT-DISPLAYHEIGHT))*(size+gap)+offset[1], size, size))
 
 
 def get_shuffled(list: list) -> list:
@@ -205,7 +245,8 @@ def get_shuffled(list: list) -> list:
     return shuffled
 
 WIDTH = 10
-HEIGHT = 20
+DISPLAYHEIGHT = 20
+HEIGHT = 40
 BLOCKSIZE = 32
 BLOCKGAP = 1
 XMARGIN = 5
@@ -213,13 +254,13 @@ YMARGIN = 5
 DROPTIME = 1000 #ms
 
 SHAPES = [
-    Shape(pos=Pos((WIDTH-1)//2+0.5, HEIGHT-1.5), relPositions=[Pos(-1.5,0.5),Pos(-0.5,0.5),Pos(0.5,0.5),Pos(1.5,0.5)], colour=Tile.CYAN), # I
-    Shape(pos=Pos((WIDTH-1)//2+1, HEIGHT-2), relPositions=[Pos(-1,1),Pos(-1,0),Pos(0,0),Pos(1,0)], colour=Tile.BLUE), # J
-    Shape(pos=Pos((WIDTH-1)//2, HEIGHT-2), relPositions=[Pos(-1,0),Pos(0,0),Pos(1,0),Pos(1,1)], colour=Tile.ORANGE), # L
-    Shape(pos=Pos((WIDTH-1)//2+0.5, HEIGHT-1.5), relPositions=[Pos(-0.5,0.5),Pos(0.5,0.5),Pos(0.5,-0.5),Pos(-0.5,-0.5)], colour=Tile.YELLOW), # O
-    Shape(pos=Pos((WIDTH-1)//2, HEIGHT-2), relPositions=[Pos(-1,0),Pos(0,0),Pos(0,1),Pos(1,1)], colour=Tile.GREEN), # Z
-    Shape(pos=Pos((WIDTH-1)//2, HEIGHT-2), relPositions=[Pos(-1,0),Pos(0,0),Pos(0,1),Pos(1,0)], colour=Tile.PURPLE), # T
-    Shape(pos=Pos((WIDTH-1)//2+1, HEIGHT-2), relPositions=[Pos(1,0),Pos(0,0),Pos(0,1),Pos(-1,1)], colour=Tile.RED), # S
+    Shape(pos=Pos((WIDTH-1)//2+0.5, DISPLAYHEIGHT-1.5), relPositions=[Pos(-1.5,0.5),Pos(-0.5,0.5),Pos(0.5,0.5),Pos(1.5,0.5)], colour=Tile.CYAN, name="I"), # I
+    Shape(pos=Pos((WIDTH-1)//2+1, DISPLAYHEIGHT-2), relPositions=[Pos(-1,1),Pos(-1,0),Pos(0,0),Pos(1,0)], colour=Tile.BLUE, name="J"), # J
+    Shape(pos=Pos((WIDTH-1)//2, DISPLAYHEIGHT-2), relPositions=[Pos(-1,0),Pos(0,0),Pos(1,0),Pos(1,1)], colour=Tile.ORANGE, name="L"), # L
+    Shape(pos=Pos((WIDTH-1)//2+0.5, DISPLAYHEIGHT-1.5), relPositions=[Pos(-0.5,0.5),Pos(0.5,0.5),Pos(0.5,-0.5),Pos(-0.5,-0.5)], colour=Tile.YELLOW, name="O"), # O
+    Shape(pos=Pos((WIDTH-1)//2, DISPLAYHEIGHT-2), relPositions=[Pos(-1,0),Pos(0,0),Pos(0,1),Pos(1,1)], colour=Tile.GREEN, name="Z"), # Z
+    Shape(pos=Pos((WIDTH-1)//2, DISPLAYHEIGHT-2), relPositions=[Pos(-1,0),Pos(0,0),Pos(0,1),Pos(1,0)], colour=Tile.PURPLE, name="T"), # T
+    Shape(pos=Pos((WIDTH-1)//2+1, DISPLAYHEIGHT-2), relPositions=[Pos(1,0),Pos(0,0),Pos(0,1),Pos(-1,1)], colour=Tile.RED, name="S"), # S
 ]
 
 grid: list[Tile] = [Tile(pos=Pos(x,y), colour=0) for y in range(HEIGHT) for x in range(WIDTH)]
@@ -230,7 +271,7 @@ assert shape.blocks is not None
 for block in shape.blocks: block.set()
 
 pygame.init()
-screen = pygame.display.set_mode((WIDTH*(BLOCKSIZE+BLOCKGAP)-BLOCKGAP+XMARGIN*2, HEIGHT*(BLOCKSIZE+BLOCKGAP)-BLOCKGAP+YMARGIN*2))
+screen = pygame.display.set_mode((WIDTH*(BLOCKSIZE+BLOCKGAP)-BLOCKGAP+XMARGIN*2, DISPLAYHEIGHT*(BLOCKSIZE+BLOCKGAP)-BLOCKGAP+YMARGIN*2))
 clock = pygame.time.Clock()
 running = True
 ticks = 1
@@ -266,7 +307,10 @@ while running:
         ticks += 1
 
     for tile in grid:
-        tile.draw(screen=screen, size=BLOCKSIZE, offset=(XMARGIN, YMARGIN), gap=BLOCKGAP)
+        if tile.pos.y < DISPLAYHEIGHT:
+            tile.draw(screen=screen, size=BLOCKSIZE, offset=(XMARGIN, YMARGIN), gap=BLOCKGAP)
+        else:
+            break
 
     pygame.display.flip()
 
@@ -274,7 +318,6 @@ while running:
 
 pygame.quit()
 
-# TODO: wall kicks
 # TODO: row clear
 # TODO: next block
 # TODO: points?
