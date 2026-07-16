@@ -234,6 +234,10 @@ class Tile():
 
     def __repr__(self):
         return f"Tile(pos={self.pos},colour={self.colour})"
+    
+    def drop(self, grid: list[Tile]):
+        grid[(self.pos-Pos(0,1)).index()].colour = self.colour
+        self.colour = 0
 
     def draw(self, screen: pygame.Surface, size: int, offset: tuple[int, int] = (0, 0), gap: int = 0):
         pygame.draw.rect(screen, self.COLOURS[self.colour], pygame.Rect(self.pos.x*(size+gap)+offset[0], ((HEIGHT-1)-self.pos.y-(HEIGHT-DISPLAYHEIGHT))*(size+gap)+offset[1], size, size))
@@ -301,9 +305,22 @@ while running:
     if pygame.time.get_ticks() >= DROPTIME*ticks:
         if not dropped:
             if not shape.move():
+                yLevels = set(int(block.pos.y) for block in shape.blocks)
+                rowsCleared = 0
+                for y in yLevels:
+                    if all(grid[Pos(x,y-rowsCleared).index()].colour != 0 for x in range(WIDTH)):
+                        for x in range(WIDTH):
+                            grid[Pos(x,y-rowsCleared).index()].colour = 0
+                        for dropy in range(y+1-rowsCleared,HEIGHT):
+                            for x in range(WIDTH):
+                                grid[Pos(x,dropy).index()].drop(grid=grid)
+                        rowsCleared += 1
+                print(rowsCleared)
+                        
                 if len(bag) == 0:
                     bag = get_shuffled(SHAPES)
                 shape = bag.pop(0).instantiate()
+                assert shape.blocks is not None
         ticks += 1
 
     for tile in grid:
@@ -318,6 +335,6 @@ while running:
 
 pygame.quit()
 
-# TODO: row clear
+# TODO: Change lock delay from dependent on timing to 0.5s
 # TODO: next block
 # TODO: points?
