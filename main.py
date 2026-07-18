@@ -136,13 +136,16 @@ class Shape():
     def __repr__(self):
         return f"Shape(pos={self.pos},relPositions={self.relPositions},colour={self.colour},blocks={self.blocks})"
 
-    def instantiate(self, pos:Pos|None = None) -> Shape:
+    def instantiate(self, pos:Pos|None = None) -> tuple[Shape, bool]:
         pos = self.pos if pos is None else pos
         shape = Shape(pos=Pos(pos.x, pos.y), relPositions=[Pos(relPos.x, relPos.y) for relPos in self.relPositions], colour=self.colour, name=self.name, rotation=self.rotation, blocks=[Block(pos=pos+relPos, relPos=Pos(relPos.x,relPos.y), colour=self.colour) for relPos in self.relPositions])
         assert shape.blocks is not None
+        overlap = False
         for block in shape.blocks:
+            if grid[block.pos.index()].colour != 0:
+                overlap = True
             block.set()
-        return shape
+        return shape, overlap
     
     def is_instantiated(self) -> bool:
         return isinstance(self.blocks, list) and len(self.blocks) > 0 and all(isinstance(block, Block) for block in self.blocks)
@@ -184,16 +187,15 @@ class Shape():
             raise ValueError("Vector is not an integer Pos")
         if self.is_instantiated():
             assert self.blocks is not None
-            if set:
-                for block in self.blocks:
-                    block.clear()
+            for block in self.blocks:
+                block.clear()
 
             if all(block.move(vector=vector, set=False) for block in self.blocks):
                 if set:
                     for block in self.blocks:
                         block.move(vector=vector)
-                    for block in self.blocks:
-                        block.set()
+                for block in self.blocks:
+                    block.set()
                 self.pos = self.pos+vector
                 return True
                     
@@ -256,6 +258,7 @@ BLOCKGAP = 1
 XMARGIN = 5
 YMARGIN = 5
 DROPTIME = 1000 #ms
+LOCKTIME = 500 #ms
 
 SHAPES = [
     Shape(pos=Pos((WIDTH-1)//2+0.5, DISPLAYHEIGHT-1.5), relPositions=[Pos(-1.5,0.5),Pos(-0.5,0.5),Pos(0.5,0.5),Pos(1.5,0.5)], colour=Tile.CYAN, name="I"), # I
@@ -270,15 +273,16 @@ SHAPES = [
 grid: list[Tile] = [Tile(pos=Pos(x,y), colour=0) for y in range(HEIGHT) for x in range(WIDTH)]
 
 bag: list[Shape] = get_shuffled(SHAPES)
-shape: Shape = bag.pop(0).instantiate()
+shape: Shape = bag.pop(0).instantiate()[0]
 assert shape.blocks is not None
-for block in shape.blocks: block.set()
 
 pygame.init()
 screen = pygame.display.set_mode((WIDTH*(BLOCKSIZE+BLOCKGAP)-BLOCKGAP+XMARGIN*2, DISPLAYHEIGHT*(BLOCKSIZE+BLOCKGAP)-BLOCKGAP+YMARGIN*2))
 clock = pygame.time.Clock()
 running = True
 ticks = 1
+landed = False
+landTime = 0
 
 while running:
 
@@ -290,39 +294,85 @@ while running:
         if event.type == pygame.KEYDOWN:
             if event.key in (pygame.K_w,pygame.K_UP,pygame.K_e):
                 shape.rotate(clockwise=True)
+                if not shape.move(set=False):
+                    if not landed:
+                        landTime = pygame.time.get_ticks()
+                        landed = True
+                else:
+                    landed = False
             if event.key in (pygame.K_q,pygame.K_z):
                 shape.rotate(clockwise=False)
+                if not shape.move(set=False):
+                    if not landed:
+                        landTime = pygame.time.get_ticks()
+                        landed = True
+                else:
+                    landed = False
 
     keys = pygame.key.get_pressed()
     if any(keys[key] for key in (pygame.K_s,pygame.K_DOWN)) and not dropped:
         if shape.move():
             dropped = True
+            if not shape.move(set=False):
+                if not landed:
+                    landTime = pygame.time.get_ticks()
+                    landed = True
+            else:
+                landed = False
     if any(keys[key] for key in (pygame.K_a,pygame.K_LEFT)):
         shape.move(Pos(-1,0))
+        if not shape.move(set=False):
+            if not landed:
+                landTime = pygame.time.get_ticks()
+                landed = True
+        else:
+            landed = False
     if any(keys[key] for key in (pygame.K_d,pygame.K_RIGHT)):
         shape.move(Pos(1,0))
+        if not shape.move(set=False):
+            if not landed:
+                landTime = pygame.time.get_ticks()
+                landed = True
+        else:
+            landed = False
 
     screen.fill("grey")
+    
+    if landed and pygame.time.get_ticks()-landTime >= LOCKTIME:
+        yLevels = set(int(block.pos.y) for block in shape.blocks)
+        rowsCleared = 0
+        for y in yLevels:
+            if all(grid[Pos(x,y-rowsCleared).index()].colour != 0 for x in range(WIDTH)):
+                for x in range(WIDTH):
+                    grid[Pos(x,y-rowsCleared).index()].colour = 0
+                for dropy in range(y+1-rowsCleared,HEIGHT):
+                    for x in range(WIDTH):
+                        grid[Pos(x,dropy).index()].drop(grid=grid)
+                rowsCleared += 1
+                
+        if len(bag) == 0:
+            bag = get_shuffled(SHAPES)
+        shape, lost = bag.pop(0).instantiate()
+        if lost:
+            grid: list[Tile] = [Tile(pos=Pos(x,y), colour=0) for y in range(HEIGHT) for x in range(WIDTH)]
+            bag: list[Shape] = get_shuffled(SHAPES)
+            shape: Shape = bag.pop(0).instantiate()[0]
+            landed = False
+            landTime = 0
+        assert shape.blocks is not None
+        landed = False
 
     if pygame.time.get_ticks() >= DROPTIME*ticks:
         if not dropped:
             if not shape.move():
-                yLevels = set(int(block.pos.y) for block in shape.blocks)
-                rowsCleared = 0
-                for y in yLevels:
-                    if all(grid[Pos(x,y-rowsCleared).index()].colour != 0 for x in range(WIDTH)):
-                        for x in range(WIDTH):
-                            grid[Pos(x,y-rowsCleared).index()].colour = 0
-                        for dropy in range(y+1-rowsCleared,HEIGHT):
-                            for x in range(WIDTH):
-                                grid[Pos(x,dropy).index()].drop(grid=grid)
-                        rowsCleared += 1
-                print(rowsCleared)
-                        
-                if len(bag) == 0:
-                    bag = get_shuffled(SHAPES)
-                shape = bag.pop(0).instantiate()
-                assert shape.blocks is not None
+                if not landed:
+                    landTime = pygame.time.get_ticks()
+                    landed = True
+            else:
+                if not shape.move(set=False):
+                    if not landed:
+                        landTime = pygame.time.get_ticks()
+                        landed = True
         ticks += 1
 
     for tile in grid:
@@ -337,6 +387,5 @@ while running:
 
 pygame.quit()
 
-# TODO: Change lock delay from dependent on timing to 0.5s
 # TODO: next block
 # TODO: points?
