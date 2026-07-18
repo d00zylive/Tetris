@@ -250,6 +250,16 @@ def get_shuffled(list: list) -> list:
     random.shuffle(shuffled)
     return shuffled
 
+def check_landed():
+    global landed
+    global landTime
+    if not shape.move(set=False):
+        if not landed:
+            landTime = pygame.time.get_ticks()
+            landed = True
+    else:
+        landed = False
+
 WIDTH = 10
 DISPLAYHEIGHT = 20
 HEIGHT = 40
@@ -294,47 +304,25 @@ while running:
         if event.type == pygame.KEYDOWN:
             if event.key in (pygame.K_w,pygame.K_UP,pygame.K_e):
                 shape.rotate(clockwise=True)
-                if not shape.move(set=False):
-                    if not landed:
-                        landTime = pygame.time.get_ticks()
-                        landed = True
-                else:
-                    landed = False
+                check_landed()
             if event.key in (pygame.K_q,pygame.K_z):
                 shape.rotate(clockwise=False)
-                if not shape.move(set=False):
-                    if not landed:
-                        landTime = pygame.time.get_ticks()
-                        landed = True
-                else:
-                    landed = False
+                check_landed()
+            if event.key in (pygame.K_a,pygame.K_LEFT):
+                shape.move(Pos(-1,0))
+                check_landed()
 
     keys = pygame.key.get_pressed()
     if any(keys[key] for key in (pygame.K_s,pygame.K_DOWN)) and not dropped:
         if shape.move():
             dropped = True
-            if not shape.move(set=False):
-                if not landed:
-                    landTime = pygame.time.get_ticks()
-                    landed = True
-            else:
-                landed = False
+            check_landed()
     if any(keys[key] for key in (pygame.K_a,pygame.K_LEFT)):
         shape.move(Pos(-1,0))
-        if not shape.move(set=False):
-            if not landed:
-                landTime = pygame.time.get_ticks()
-                landed = True
-        else:
-            landed = False
+        check_landed()
     if any(keys[key] for key in (pygame.K_d,pygame.K_RIGHT)):
         shape.move(Pos(1,0))
-        if not shape.move(set=False):
-            if not landed:
-                landTime = pygame.time.get_ticks()
-                landed = True
-        else:
-            landed = False
+        check_landed()
 
     screen.fill("grey")
     
@@ -364,15 +352,8 @@ while running:
 
     if pygame.time.get_ticks() >= DROPTIME*ticks:
         if not dropped:
-            if not shape.move():
-                if not landed:
-                    landTime = pygame.time.get_ticks()
-                    landed = True
-            else:
-                if not shape.move(set=False):
-                    if not landed:
-                        landTime = pygame.time.get_ticks()
-                        landed = True
+            shape.move()
+            check_landed()
         ticks += 1
 
     for tile in grid:
