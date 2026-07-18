@@ -288,8 +288,10 @@ while running:
         if event.type == pygame.QUIT:
             running = False
         if event.type == pygame.KEYDOWN:
-            if event.key in (pygame.K_w,pygame.K_UP):
-                shape.rotate()
+            if event.key in (pygame.K_w,pygame.K_UP,pygame.K_e):
+                shape.rotate(clockwise=True)
+            if event.key in (pygame.K_q,pygame.K_z):
+                shape.rotate(clockwise=False)
 
     keys = pygame.key.get_pressed()
     if any(keys[key] for key in (pygame.K_s,pygame.K_DOWN)) and not dropped:
