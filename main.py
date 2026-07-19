@@ -265,8 +265,10 @@ DISPLAYHEIGHT = 20
 HEIGHT = 40
 BLOCKSIZE = 32
 BLOCKGAP = 1
-LEFTMARGIN, RIGHTMARGIN = 5,5
+NEXTGAP = 10
+LEFTMARGIN, RIGHTMARGIN = 5,10
 TOPMARGIN, BOTTOMMARGIN = 5,5
+NEXTOFFSET = Pos(LEFTMARGIN+(BLOCKSIZE+BLOCKGAP)*WIDTH-BLOCKGAP+NEXTGAP+(BLOCKSIZE*4+BLOCKGAP*3)//2+RIGHTMARGIN, BLOCKSIZE*3+TOPMARGIN)
 DROPTIME = 1000 #ms
 LOCKTIME = 500 #ms
 DASTIME = 167 #ms
@@ -288,7 +290,7 @@ shape: Shape = bag.pop(0).instantiate()[0]
 assert shape.blocks is not None
 
 pygame.init()
-screen = pygame.display.set_mode((WIDTH*(BLOCKSIZE+BLOCKGAP)-BLOCKGAP+LEFTMARGIN+RIGHTMARGIN, DISPLAYHEIGHT*(BLOCKSIZE+BLOCKGAP)-BLOCKGAP+TOPMARGIN+BOTTOMMARGIN))
+screen = pygame.display.set_mode((WIDTH*(BLOCKSIZE+BLOCKGAP)-BLOCKGAP+LEFTMARGIN+(RIGHTMARGIN+NEXTGAP+BLOCKSIZE*4+BLOCKGAP*3), DISPLAYHEIGHT*(BLOCKSIZE+BLOCKGAP)-BLOCKGAP+TOPMARGIN+BOTTOMMARGIN))
 clock = pygame.time.Clock()
 running = True
 ticks = 1
@@ -356,6 +358,11 @@ while running:
             landTime = 0
         assert shape.blocks is not None
         landed = False
+
+    if len(bag) == 0:
+        bag = get_shuffled(SHAPES)
+    for relPos in bag[0].relPositions:
+        pygame.draw.rect(screen, color=Tile.COLOURS[bag[0].colour], rect=pygame.Rect((relPos.x*BLOCKSIZE+NEXTOFFSET.x-BLOCKSIZE,relPos.y*BLOCKSIZE+NEXTOFFSET.y-BLOCKSIZE),(BLOCKSIZE,BLOCKSIZE)))
 
     if pygame.time.get_ticks() >= DROPTIME*ticks:
         if not dropped:
