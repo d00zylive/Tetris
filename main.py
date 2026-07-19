@@ -212,7 +212,7 @@ class Tile():
     colour: int
 
     COLOURS: dict[int, pygame.Color] = {
-        0: pygame.Color(7,7,56), # black/empty
+        0: pygame.Color(7,7,56), # dark blue/empty
         1: pygame.Color(255,0,0), # red
         2: pygame.Color(0,255,0), # green
         3: pygame.Color(0,0,255), # blue
