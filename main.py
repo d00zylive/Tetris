@@ -268,7 +268,7 @@ BLOCKGAP = 1
 NEXTGAP = 10
 LEFTMARGIN, RIGHTMARGIN = 5,10
 TOPMARGIN, BOTTOMMARGIN = 5,5
-NEXTOFFSET = Pos(LEFTMARGIN+(BLOCKSIZE+BLOCKGAP)*WIDTH-BLOCKGAP+NEXTGAP+(BLOCKSIZE*4+BLOCKGAP*3)//2+RIGHTMARGIN, BLOCKSIZE*3+TOPMARGIN)
+NEXTOFFSET = Pos(LEFTMARGIN+(BLOCKSIZE+BLOCKGAP)*WIDTH-BLOCKGAP+NEXTGAP+(BLOCKSIZE*4+BLOCKGAP*3)//2, BLOCKSIZE*3+TOPMARGIN)
 DROPTIME = 1000 #ms
 LOCKTIME = 500 #ms
 DASTIME = 167 #ms
@@ -290,8 +290,10 @@ shape: Shape = bag.pop(0).instantiate()[0]
 assert shape.blocks is not None
 
 pygame.init()
-screen = pygame.display.set_mode((WIDTH*(BLOCKSIZE+BLOCKGAP)-BLOCKGAP+LEFTMARGIN+(RIGHTMARGIN+NEXTGAP+BLOCKSIZE*4+BLOCKGAP*3), DISPLAYHEIGHT*(BLOCKSIZE+BLOCKGAP)-BLOCKGAP+TOPMARGIN+BOTTOMMARGIN))
+screen = pygame.display.set_mode((LEFTMARGIN+WIDTH*(BLOCKSIZE+BLOCKGAP)-BLOCKGAP+NEXTGAP+BLOCKSIZE*4+BLOCKGAP*3+RIGHTMARGIN, DISPLAYHEIGHT*(BLOCKSIZE+BLOCKGAP)-BLOCKGAP+TOPMARGIN+BOTTOMMARGIN))
 clock = pygame.time.Clock()
+pygame.font.init()
+font = pygame.font.SysFont("default",BLOCKSIZE)
 running = True
 ticks = 1
 landed = False
@@ -358,11 +360,13 @@ while running:
             landTime = 0
         assert shape.blocks is not None
         landed = False
-
+    
+    screen.blit(font.render("NEXT", 1, (255,255,255)), (NEXTOFFSET.x-font.size("NEXT")[0]//2,NEXTOFFSET.y-(BLOCKSIZE+BLOCKGAP)*1.5-font.size("NEXT")[1]))
     if len(bag) == 0:
         bag = get_shuffled(SHAPES)
+    pygame.draw.rect(screen, color="grey", rect=pygame.Rect((NEXTOFFSET.x-(BLOCKSIZE+BLOCKGAP)*2,NEXTOFFSET.y-(BLOCKSIZE+BLOCKGAP)*1.5),((BLOCKSIZE+BLOCKGAP)*4-BLOCKGAP,(BLOCKSIZE+BLOCKGAP)*3-BLOCKGAP)))
     for relPos in bag[0].relPositions:
-        pygame.draw.rect(screen, color=Tile.COLOURS[bag[0].colour], rect=pygame.Rect((relPos.x*BLOCKSIZE+NEXTOFFSET.x-BLOCKSIZE,relPos.y*BLOCKSIZE+NEXTOFFSET.y-BLOCKSIZE),(BLOCKSIZE,BLOCKSIZE)))
+        pygame.draw.rect(screen, color=Tile.COLOURS[bag[0].colour], rect=pygame.Rect((relPos.x*(BLOCKSIZE+BLOCKGAP)+NEXTOFFSET.x-BLOCKSIZE//2,-relPos.y*(BLOCKSIZE+BLOCKGAP)+NEXTOFFSET.y-BLOCKSIZE//2),(BLOCKSIZE,BLOCKSIZE)))
 
     if pygame.time.get_ticks() >= DROPTIME*ticks:
         if not dropped:
