@@ -212,7 +212,7 @@ class Tile():
     colour: int
 
     COLOURS: dict[int, pygame.Color] = {
-        0: pygame.Color(0,0,0), # black/empty
+        0: pygame.Color(7,7,56), # black/empty
         1: pygame.Color(255,0,0), # red
         2: pygame.Color(0,255,0), # green
         3: pygame.Color(0,0,255), # blue
@@ -265,10 +265,11 @@ DISPLAYHEIGHT = 20
 HEIGHT = 40
 BLOCKSIZE = 32
 BLOCKGAP = 1
-XMARGIN = 5
-YMARGIN = 5
+LEFTMARGIN, RIGHTMARGIN = 5,5
+TOPMARGIN, BOTTOMMARGIN = 5,5
 DROPTIME = 1000 #ms
 LOCKTIME = 500 #ms
+DASTIME = 167 #ms
 
 SHAPES = [
     Shape(pos=Pos((WIDTH-1)//2+0.5, DISPLAYHEIGHT-1.5), relPositions=[Pos(-1.5,0.5),Pos(-0.5,0.5),Pos(0.5,0.5),Pos(1.5,0.5)], colour=Tile.CYAN, name="I"), # I
@@ -287,12 +288,13 @@ shape: Shape = bag.pop(0).instantiate()[0]
 assert shape.blocks is not None
 
 pygame.init()
-screen = pygame.display.set_mode((WIDTH*(BLOCKSIZE+BLOCKGAP)-BLOCKGAP+XMARGIN*2, DISPLAYHEIGHT*(BLOCKSIZE+BLOCKGAP)-BLOCKGAP+YMARGIN*2))
+screen = pygame.display.set_mode((WIDTH*(BLOCKSIZE+BLOCKGAP)-BLOCKGAP+LEFTMARGIN+RIGHTMARGIN, DISPLAYHEIGHT*(BLOCKSIZE+BLOCKGAP)-BLOCKGAP+TOPMARGIN+BOTTOMMARGIN))
 clock = pygame.time.Clock()
 running = True
 ticks = 1
 landed = False
 landTime = 0
+moveTime = 0
 
 while running:
 
@@ -309,7 +311,12 @@ while running:
                 shape.rotate(clockwise=False)
                 check_landed()
             if event.key in (pygame.K_a,pygame.K_LEFT):
+                moveTime = pygame.time.get_ticks()
                 shape.move(Pos(-1,0))
+                check_landed()
+            if event.key in (pygame.K_d,pygame.K_RIGHT):
+                moveTime = pygame.time.get_ticks()
+                shape.move(Pos(1,0))
                 check_landed()
 
     keys = pygame.key.get_pressed()
@@ -317,14 +324,14 @@ while running:
         if shape.move():
             dropped = True
             check_landed()
-    if any(keys[key] for key in (pygame.K_a,pygame.K_LEFT)):
+    if any(keys[key] for key in (pygame.K_a,pygame.K_LEFT)) and pygame.time.get_ticks()-moveTime >= DASTIME:
         shape.move(Pos(-1,0))
         check_landed()
-    if any(keys[key] for key in (pygame.K_d,pygame.K_RIGHT)):
+    if any(keys[key] for key in (pygame.K_d,pygame.K_RIGHT)) and pygame.time.get_ticks()-moveTime >= DASTIME:
         shape.move(Pos(1,0))
         check_landed()
 
-    screen.fill("grey")
+    screen.fill("black")
     
     if landed and pygame.time.get_ticks()-landTime >= LOCKTIME:
         yLevels = set(int(block.pos.y) for block in shape.blocks)
@@ -358,7 +365,7 @@ while running:
 
     for tile in grid:
         if tile.pos.y < DISPLAYHEIGHT:
-            tile.draw(screen=screen, size=BLOCKSIZE, offset=(XMARGIN, YMARGIN), gap=BLOCKGAP)
+            tile.draw(screen=screen, size=BLOCKSIZE, offset=(LEFTMARGIN, TOPMARGIN), gap=BLOCKGAP)
         else:
             break
 
