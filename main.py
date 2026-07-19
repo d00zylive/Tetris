@@ -386,5 +386,4 @@ while running:
 
 pygame.quit()
 
-# TODO: next block
 # TODO: points?
